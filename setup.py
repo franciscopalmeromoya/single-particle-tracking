@@ -21,8 +21,10 @@ setup(
     packages=["spt"],
     ext_modules=cythonize(extensions),
     install_requires=[
-        'numpy',  # Example dependency
-        # Add other dependencies
+        'numpy',  
+        'tqdm', 
+        'scipy',
+        'pandas',
     ],
     classifiers=[
         "Programming Language :: Python :: 3",
