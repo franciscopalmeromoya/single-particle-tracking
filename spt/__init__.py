@@ -1,3 +1,3 @@
 # spt/__init__.py
-from .core import run
+from .tracking import Tracker
 
