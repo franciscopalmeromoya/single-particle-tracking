@@ -47,8 +47,57 @@ cdef frame2frame(np.ndarray[double, ndim=2] locs0, np.ndarray[double, ndim=2] lo
                 
     return lap
 
-def segment2segment(np.ndarray[double, ndim=2] dfspots):
+cdef segment2segment(np.ndarray[double, ndim=2] dfspots, int skip_frames, double max_dist):
+    """
+    Populate LAP matrix for segment linking.
+
+    Parameters:
+    -----------
+    dfspots : 2D numpy array of shape (N,6)
+            Positions of spots with track id, indexes and sorted by frame as:
+                -------------------------------
+                idx | description
+                -------------------------------
+                0  | frame
+                1  | frame subindex (fidx)
+                2  | x coordinates (x)
+                3  | y coordinates (y)
+                4  | track id (tid)
+                5  | dataframe indexes (idx)
+                -------------------------------
+    max_dist : float
+        Maximum distance for linking.
+
+    Returns:
+    --------
+    lap : 2D numpy array of shape (2*n_segments, 2*n_segments)
+        LAP matrix.
+    """
     cdef int n_segments = np.max(dfspots[:, 4]) + 1
+    cdef np.ndarray[double, ndim=2] dfsegments = np.zeros((n_segments, 6))
+    cdef np.ndarray[double, ndim=2] lap = np.full((2*n_segments, 2*n_segments), INFINITY)
+    cdef list segment_combos = []
+    cdef int idxs 
+    cdef int i
+
+    for i in range(n_segments):
+        # Find i-th segment
+        seg = dfspots[dfspots[:, 4] == i]
+        idxs = seg.shape[0] - 1
+        # Populate dfsegments
+        dfsegments[i, 0] = seg[0, 0] # frame_start
+        dfsegments[i, 1] = seg[0, 2] # x_start
+        dfsegments[i, 2] = seg[0, 3] # y_start
+
+        dfsegments[i, 3] = seg[idxs, 0] # frame_end
+        dfsegments[i, 4] = seg[idxs, 2] # x_end
+        dfsegments[i, 5] = seg[idxs, 3] # y_end
+    
+    for i in range(n_segments):
+        pass
+    
+    return dfsegments
+
 
 cdef prepare(np.ndarray[double, ndim=2] spots, int N):
     """
@@ -93,7 +142,7 @@ cdef prepare(np.ndarray[double, ndim=2] spots, int N):
     return dfspots
 
 
-def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist):
+def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist, int simple):
     """
     Robust single-particle tracking.
 
@@ -177,10 +226,13 @@ def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist):
                 else:
                     # Create
                     dfspots[idx1, 4] = np.max(dfspots[:, 4]) + 1
-
+    
+    if simple == 1:
+        return dfspots
+    else:
         # Step 2: link segments.
-
-    return dfspots
+        dfsegments = segment2segment(dfspots, skip_frames, max_dist)
+        return dfspots
 
 
 
