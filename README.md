@@ -76,6 +76,10 @@ Jaqaman, K., Loerke, D., Mettlen, M. et al. Robust single-particle tracking in l
 
 ---
 
+## Acknowledgements
+
+This library builds upon the original Python implementation by [Edo van Veen](https://github.com/edovanveen). We are grateful for his work, which served as the foundation for this version. If you find this library useful, please also consider acknowledging his contributions.
+
 ## Contact
 
 For questions, feedback, or support, please open an issue in the repository or contact me by email.
