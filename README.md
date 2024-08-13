@@ -74,11 +74,11 @@ If you use this library in your research, please cite the original paper:
 
 Jaqaman, K., Loerke, D., Mettlen, M. et al. Robust single-particle tracking in live-cell time-lapse sequences. Nat Methods 5, 695–702 (2008). [https://doi.org/10.1038/nmeth.1237](https://doi.org/10.1038/nmeth.1237)
 
----
-
 ## Acknowledgements
 
 This library builds upon the original Python implementation by [Edo van Veen](https://github.com/edovanveen). We are grateful for his work, which served as the foundation for this version. If you find this library useful, please also consider acknowledging his contributions.
+
+---
 
 ## Contact
 
