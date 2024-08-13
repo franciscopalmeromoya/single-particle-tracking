@@ -38,10 +38,10 @@ Here is a basic example of how to use the library in your project:
 ```python
 import spt
 
-# Initialize the tracking algorithm with your data
+# Initialize the tracking algorithm with your parameters
 tracker = spt.Tracker(skip_frames=3, max_dist=2)
 
-# Run the enhanced tracking algorithm
+# Run the tracking algorithm
 results = tracker.track(data)
 ```
 
