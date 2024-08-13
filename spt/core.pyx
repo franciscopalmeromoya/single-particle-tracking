@@ -3,11 +3,13 @@
 import numpy as np
 cimport numpy as np
 from libc.math cimport sqrt, INFINITY
+cimport cython
 
 from tqdm import tqdm
 from scipy.optimize import linear_sum_assignment
 
-
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef frame2frame(np.ndarray[double, ndim=2] locs0, np.ndarray[double, ndim=2] locs1, double max_dist):
     """
     Create LAP matrix based on the distances between particle positions in two frames.
@@ -47,7 +49,9 @@ cdef frame2frame(np.ndarray[double, ndim=2] locs0, np.ndarray[double, ndim=2] lo
                 
     return lap
 
-cdef segment2segment(np.ndarray[double, ndim=2] dfspots, int skip_frames, double max_dist):
+@cython.boundscheck(False)
+@cython.wraparound(False)
+cdef segment2segment(np.ndarray[double, ndim=2] dfspots, int skip_frames, double max_dist, int n_segments):
     """
     Populate LAP matrix for segment linking.
 
@@ -73,32 +77,60 @@ cdef segment2segment(np.ndarray[double, ndim=2] dfspots, int skip_frames, double
     lap : 2D numpy array of shape (2*n_segments, 2*n_segments)
         LAP matrix.
     """
-    cdef int n_segments = np.max(dfspots[:, 4]) + 1
+    cdef int n_combos
     cdef np.ndarray[double, ndim=2] dfsegments = np.zeros((n_segments, 6))
     cdef np.ndarray[double, ndim=2] lap = np.full((2*n_segments, 2*n_segments), INFINITY)
     cdef list segment_combos = []
-    cdef int idxs 
-    cdef int i
+    cdef int idxseg 
+    cdef int i, j
 
     for i in range(n_segments):
         # Find i-th segment
         seg = dfspots[dfspots[:, 4] == i]
-        idxs = seg.shape[0] - 1
+        idxseg = seg.shape[0] - 1
         # Populate dfsegments
         dfsegments[i, 0] = seg[0, 0] # frame_start
         dfsegments[i, 1] = seg[0, 2] # x_start
         dfsegments[i, 2] = seg[0, 3] # y_start
 
-        dfsegments[i, 3] = seg[idxs, 0] # frame_end
-        dfsegments[i, 4] = seg[idxs, 2] # x_end
-        dfsegments[i, 5] = seg[idxs, 3] # y_end
+        dfsegments[i, 3] = seg[idxseg, 0] # frame_end
+        dfsegments[i, 4] = seg[idxseg, 2] # x_end
+        dfsegments[i, 5] = seg[idxseg, 3] # y_end
     
+    # Identify segment pairs (i, j) that can be linked
     for i in range(n_segments):
-        pass
-    
-    return dfsegments
+        for j in range(n_segments):
+            if i != j:
+                d_frame = dfsegments[j, 0] - dfsegments[i, 3]
+                if 0 < d_frame <= skip_frames + 1:
+                    segment_combos.append((i, j))
 
+    # Populate LAP matrix with squared distances
+    n_combos = len(segment_combos)
+    for i in range(n_combos):
+        seg_i = dfsegments[segment_combos[i][0]]
+        seg_j = dfsegments[segment_combos[i][1]]
+        
+        d_frame = seg_j[0] - seg_i[3]
+        if 0 < d_frame <= skip_frames + 1:
+            d_x = seg_j[1] - seg_i[4]
+            d_y = seg_j[2] - seg_i[5]
+            distance = d_x * d_x + d_y * d_y
+            if distance <= max_dist * max_dist:
+                lap[segment_combos[i][0], segment_combos[i][1]] = distance
 
+    # Fill the no-link regions using a loop
+    for i in range(n_segments):
+        for j in range(n_segments):
+            if i == j:
+                lap[i, n_segments + j] = max_dist * max_dist
+                lap[n_segments + i, j] = max_dist * max_dist
+            lap[n_segments + i, n_segments + j] = lap[j, i]
+
+    return lap
+
+@cython.boundscheck(False)
+@cython.wraparound(False)
 cdef prepare(np.ndarray[double, ndim=2] spots, int N):
     """
     Prepare spots array for tracking algorithm.
@@ -141,8 +173,9 @@ cdef prepare(np.ndarray[double, ndim=2] spots, int N):
 
     return dfspots
 
-
-def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist, int simple):
+@cython.boundscheck(False)
+@cython.wraparound(False)
+def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist):
     """
     Robust single-particle tracking.
 
@@ -180,13 +213,13 @@ def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist, int 
     cdef int N = spots.shape[0]
     cdef int N0, N1
     cdef int n_frames = np.max(spots[:, 0])
-    cdef int i, j
+    cdef int i, j, tid
     cdef int idx, idx0, idx1
     cdef int frame0, frame1
     cdef np.ndarray[double, ndim=2] costs
     cdef np.ndarray[double, ndim=2] blobs0, blobs1
     cdef np.ndarray[double, ndim=2] locs0, locs1
-    cdef np.ndarray[long, ndim=1] row_idxs, col_idxs
+    cdef np.ndarray[long, ndim=1] row_idxs, col_idxs, idxs
     cdef np.ndarray[double, ndim=1] b0_idxs, b1_idxs
 
     # Prepare        
@@ -227,12 +260,23 @@ def run(np.ndarray[double, ndim=2] spots, int skip_frames, double max_dist, int 
                     # Create
                     dfspots[idx1, 4] = np.max(dfspots[:, 4]) + 1
     
-    if simple == 1:
-        return dfspots
-    else:
-        # Step 2: link segments.
-        dfsegments = segment2segment(dfspots, skip_frames, max_dist)
-        return dfspots
+    # Step 2: link segments.
+    cdef int n_segments = np.max(dfspots[:, 4]) + 1
+    pbar = tqdm(total=n_segments, desc="Step 2: link segments")
+    costs = segment2segment(dfspots, skip_frames, max_dist, n_segments)
+    row_idxs, col_idxs = linear_sum_assignment(costs)
+
+    # Update track ids based on LAP result
+    for i in range(len(row_idxs)):
+        if row_idxs[i] < n_segments and col_idxs[i] < n_segments:
+            idxs = dfspots[dfspots[:, 4] == col_idxs[i]][:, 5].astype(int)
+            tid = dfspots[dfspots[:, 4] == row_idxs[i]][0, 4]
+            for j in idxs:
+                idx = np.where(dfspots[:, 5]==j)[0]
+                dfspots[idx, 4] = tid
+        pbar.update(2)
+
+    return dfspots
 
 
 

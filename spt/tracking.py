@@ -13,10 +13,9 @@ class Tracker:
     max_dist : float
         Maximum distance between points for frame-to-frame linking (pixels).
     """
-    def __init__(self, skip_frames : int = 1, max_dist : float = 10, simple = True) -> None:
+    def __init__(self, skip_frames : int = 1, max_dist : float = 10) -> None:
         self.skip_frames = skip_frames
         self.max_dist = max_dist
-        self.simple = int(simple)
 
     @staticmethod
     def init(df_tracks : pd.DataFrame):
@@ -56,7 +55,7 @@ class Tracker:
         spots = self.init(df_tracks)
 
         # Start
-        dfspots = run(spots, self.skip_frames, self.max_dist, self.simple)
+        dfspots = run(spots, self.skip_frames, self.max_dist)
         
         # Convert back to dataframe
         return self.back(dfspots)
