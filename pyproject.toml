@@ -1,0 +1,28 @@
+[project]
+name = "spt"
+version = "0.0.1"
+description = "Single-particle tracking (SPT) algorithms"
+readme = "README.md"
+authors = [
+    {name = "Francisco J. Palmero Moya"},
+    {email = "francisco.palmeromoya@physics.ox.ac.uk"}
+]
+classifiers = [
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Image Processing",
+    "Topic :: Scientific/Engineering :: Information Analysis",
+    "Programming Language :: Python",
+]
+dependencies = [
+    "cython",
+    "numpy",
+    "pandas",
+    "scipy",
+    "tqdm",
+    "setuptools",
+    "matplotlib",
+]
+
+[build-system]
+requires = ["setuptools", "wheel", "Cython", "numpy"]
+build-backend = "setuptools.build_meta"
